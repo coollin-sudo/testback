@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>台股期貨三十年回測｜保證金試算</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>台股期貨三十年回測 <span class="badge">TX 大台</span></h1>
+    <p>1998 年上市以來近月連續契約績效回測，並試算不爆倉所需保證金水位</p>
+  </header>
+
+  <main>
+    <div class="grid-2">
+      <aside class="card">
+        <h2>回測參數</h2>
+        <p id="dataRange" style="font-size:0.8rem;color:var(--muted);margin-bottom:1rem"></p>
+
+        <label for="strategy">交易策略</label>
+        <select id="strategy"></select>
+
+        <div class="field-row">
+          <div>
+            <label for="contracts">口數</label>
+            <input id="contracts" type="number" min="1" max="100" value="1" />
+          </div>
+          <div>
+            <label for="marginRate">原始保證金率 (%)</label>
+            <input id="marginRate" type="number" min="5" max="30" step="0.5" value="14.5" />
+          </div>
+        </div>
+
+        <label for="capital">起始資金（台幣）</label>
+        <input id="capital" type="number" min="0" step="10000" value="1000000" />
+
+        <div class="field-row">
+          <div>
+            <label for="startDate">起始日期</label>
+            <input id="startDate" type="date" />
+          </div>
+          <div>
+            <label for="endDate">結束日期</label>
+            <input id="endDate" type="date" />
+          </div>
+        </div>
+
+        <button id="runBtn">執行回測</button>
+
+        <div class="margin-box">
+          <div style="font-size:0.82rem;color:var(--muted)">不爆倉最低資金</div>
+          <div class="highlight" id="minCapital">—</div>
+          <div style="font-size:0.82rem;color:var(--muted);margin-top:0.5rem">建議資金（含緩衝）</div>
+          <div class="highlight" id="recCapital" style="color:var(--green);font-size:1.2rem">—</div>
+        </div>
+
+        <div id="marginAlert" class="alert safe" style="display:none"></div>
+      </aside>
+
+      <section>
+        <div class="card">
+          <h2>績效摘要</h2>
+          <div class="stats-grid">
+            <div class="stat"><div class="label">累計損益</div><div class="value" id="totalPnl">—</div></div>
+            <div class="stat"><div class="label">年化報酬率</div><div class="value" id="cagr">—</div></div>
+            <div class="stat"><div class="label">最大回撤</div><div class="value" id="maxDd">—</div></div>
+            <div class="stat"><div class="label">勝率（日）</div><div class="value" id="winRate">—</div></div>
+            <div class="stat"><div class="label">交易天數</div><div class="value" id="tradingDays">—</div></div>
+            <div class="stat"><div class="label">最大單日虧損</div><div class="value" id="maxDailyLoss">—</div></div>
+            <div class="stat"><div class="label">最終權益</div><div class="value" id="finalEquity">—</div></div>
+            <div class="stat"><div class="label">契約價值（現值）</div><div class="value" id="contractValue">—</div></div>
+          </div>
+
+          <h3>帳戶權益 vs 維持保證金</h3>
+          <div class="chart-wrap tall"><canvas id="equityChart"></canvas></div>
+
+          <h3>回撤走勢</h3>
+          <div class="chart-wrap"><canvas id="drawdownChart"></canvas></div>
+
+          <h3>台指期結算價走勢</h3>
+          <div class="chart-wrap"><canvas id="marginChart"></canvas></div>
+        </div>
+
+        <div class="card" style="margin-top:1.25rem">
+          <h2>保證金試算說明</h2>
+          <div id="marginExplain" class="info-section"></div>
+
+          <h3>目前保證金估算</h3>
+          <div class="stats-grid">
+            <div class="stat"><div class="label">開倉原始保證金</div><div class="value" id="startInitial">—</div></div>
+            <div class="stat"><div class="label">開倉維持保證金</div><div class="value warn" id="startMaintenance">—</div></div>
+            <div class="stat"><div class="label">期末原始保證金</div><div class="value" id="endInitial">—</div></div>
+          </div>
+
+          <div class="info-section" style="margin-top:1rem">
+            <p><strong>保證金如何計算？</strong></p>
+            <p>台期所（TAIFEX）依合約價值與波動風險動態調整保證金。大台（TX）每點 200 元，原始保證金約為結算保證金的 1.35 倍，維持保證金約為 1.035 倍（即原始的約 76.7%）。</p>
+            <p><strong>什麼時候會爆倉？</strong></p>
+            <p>每日結算後，若帳戶權益（起始資金 ＋ 累計損益）低於<strong>維持保證金</strong>，券商會發出追繳通知；若未補足至原始保證金水位，將遭強制平倉。本工具以歷史逐日損益模擬，反推「全程不爆倉」的最低資金需求。</p>
+            <p><strong>為什麼需要建議資金 > 最低資金？</strong></p>
+            <p>最低資金僅確保歷史路徑不觸發追繳，實務上應額外保留緩衝（本工具建議加上最大回撤的 10% 或至少一個月維持保證金），以應對保證金調升、滑價與極端行情。</p>
+            <p><strong>資料來源</strong>：FinMind 台指期貨（TX）日資料，以每日最近到期月份契約組成近月連續序列。資料區間約 1998/07 至今日，共近 30 年。</p>
+          </div>
+
+          <h3>爆倉 / 追繳紀錄</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>日期</th>
+                  <th>指數點位</th>
+                  <th>帳戶權益</th>
+                  <th>維持保證金</th>
+                </tr>
+              </thead>
+              <tbody id="marginTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    本工具僅供教育與研究，不構成投資建議。期貨交易具有高槓桿風險，請審慎評估。
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
